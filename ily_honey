@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Beyond the Stars</title>
+<style>
+  * { box-sizing: border-box }
+  body { margin: 0; background: #080b1c; color: white; overflow: hidden }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100% }
+  #mesaj {
+    position: fixed; inset: 0; display: grid; place-content: center;
+    padding: 9vw; text-align: center; pointer-events: none;
+    font: clamp(27px, 5.5vw, 68px)/1.17 Georgia, serif;
+    letter-spacing: -.025em; text-wrap: balance;
+    text-shadow: 0 2px 14px #101126, 0 0 36px #927bd9;
+    opacity: 0;
+  }
+  #mesaj em { display: block; margin-top: .26em; color: #f1dcff }
+  button {
+    position: fixed; bottom: max(18px, env(safe-area-inset-bottom)); right: 16px;
+    border: 1px solid #dddaff52; border-radius: 30px; background: #101026bc;
+    color: #f5eeff; padding: 10px 15px; font: 13px system-ui; cursor: pointer;
+  }
+  #beklet { left: 16px; right: auto }
+</style>
+</head>
+<body>
+<canvas id="sahne" aria-hidden="true"></canvas>
+<div id="mesaj" lang="en" aria-hidden="true">
+  <div>My love for you goes beyond all of this,<em>my darling.</em></div>
+</div>
+<button id="beklet">Duraklat</button>
+<button id="tekrar">↻ Baştan izle</button>
+<script>
+const tuval = document.querySelector('#sahne');
+const ctx = tuval.getContext('2d');
+const mesaj = document.querySelector('#mesaj');
+const beklet = document.querySelector('#beklet');
+const PI = Math.PI;
+let W, H, S, dpr;
+let tohum = 8327;
+function rastgele() {
+  tohum = (tohum * 16807) % 2147483647;
+  return tohum / 2147483647;
+}
+const sinirla = x => Math.max(0, Math.min(1, x));
+function gecis(t, bas, son) {
+  const p = sinirla((t - bas) / (son - bas));
+  return p * p * (3 - 2 * p);
+}
+const yildizlar = Array.from({length: 1100}, () => ({
+  x: rastgele() * 2 - 1, y: rastgele() * 2 - 1,
+  z: rastgele(), boy: rastgele(), faz: rastgele() * 7,
+  sicak: rastgele() > .87
+}));
+function nokta(g, x, y, r, renk) {
+  g.fillStyle = renk;
+  g.beginPath();
+  g.arc(x, y, r, 0, PI * 2);
+  g.fill();
+}
+function hale(g, x, y, r, renk) {
+  const gr = g.createRadialGradient(x,y,0,x,y,r);
+  gr.addColorStop(0, renk);
+  gr.addColorStop(1, 'transparent');
+  g.fillStyle = gr;
+  g.fillRect(x-r,y-r,r*2,r*2);
+}
+function galaksiYap(renk, cekirdek) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 650;
+  const g = c.getContext('2d');
+  g.translate(325,325);
+  g.globalCompositeOperation = 'lighter';
+  hale(g,0,0,103,`rgba(${renk},.22)`);
+  for (let i = 0; i < 530; i++) {
+    const r = 8 + rastgele() ** 1.45 * 265;
+    const a = r * .025 + (i % 3) * PI * 2 / 3 + (rastgele()-.5)*.67;
+    hale(g,Math.cos(a)*r,Math.sin(a)*r,12+rastgele()*26,`rgba(${renk},.047)`);
+  }
+  for (let i = 0; i < 4400; i++) {
+    const r = 4 + rastgele() ** 1.42 * 285;
+    const a = r*.025 + (i%3)*PI*2/3 + (rastgele()-.5)*(.57+r/880);
+    nokta(g,Math.cos(a)*r,Math.sin(a)*r,.23+rastgele()**4*1.25,
+      `rgba(${i%5 === 0 ? cekirdek : renk},${.1+rastgele()*.48})`);
+  }
+  hale(g,0,0,39,`rgba(${cekirdek},.78)`);
+  return c;
+}
+const mor = galaksiYap('132,121,243','255,212,184');
+const mavi = galaksiYap('91,163,255','224,226,255');
+const pembe = galaksiYap('221,104,177','255,209,195');
+
+function gazYap() {
+  const c = document.createElement('canvas');
+  c.width = 850; c.height = 600;
+  const g = c.getContext('2d');
+  g.globalCompositeOperation = 'lighter';
+  for (let i=0;i<390;i++) {
+    const x = rastgele()*850;
+    const y = 465 - x*.4 + Math.sin(x*.015)*27 + (rastgele()-.5)*135;
+    const renk = i%3 === 0 ? '127,62,146' : '55,79,171';
+    hale(g,x,y,19+rastgele()*78,`rgba(${renk},.032)`);
+  }
+  for (let i=0;i<2700;i++) {
+    const x = rastgele()*850;
+    const y = 465-x*.4+Math.sin(x*.015)*27+(rastgele()+rastgele()-1)*110;
+    nokta(g,x,y,.24+rastgele()**5*.95,`rgba(218,212,255,${.06+rastgele()*.55})`);
+  }
+  return c;
+}
+const gaz = gazYap();
+
+function boyutla() {
+  W = innerWidth; H = innerHeight; S = Math.min(W,H);
+  dpr = Math.min(devicePixelRatio || 1, 2);
+  tuval.width = Math.round(W*dpr); tuval.height = Math.round(H*dpr);
+}
+addEventListener('resize', boyutla);
+boyutla();
+
+function parilti(x,y,r,a) {
+  ctx.strokeStyle = `rgba(223,222,255,${a})`;
+  ctx.lineWidth = .65;
+  ctx.beginPath();
+  ctx.moveTo(x-r,y); ctx.lineTo(x+r,y);
+  ctx.moveTo(x,y-r); ctx.lineTo(x,y+r);
+  ctx.stroke();
+}
+function gokyuzu(t, ucus) {
+  const y = H/2 + H*.23*(1-gecis(t,.65,6.9));
+  const oran = Math.max(W,H)*.69;
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#050717';
+  ctx.fillRect(0,0,W,H);
+  hale(ctx,W*.45,y,S*.86,'#222044');
+  const boy = Math.max(W,H)*(1.34+ucus*.45);
+  ctx.globalAlpha = .86-.64*gecis(t,10,17);
+  ctx.drawImage(gaz,W/2-boy/2,y-boy*.36,boy,boy*.71);
+  ctx.globalAlpha = 1;
+  for (const p of yildizlar) {
+    const derinlik = 1 + ucus*(.82+2.1*p.z);
+    const x = W/2 + p.x*oran*derinlik;
+    const sy = y + p.y*oran*derinlik;
+    if(x < -5 || x > W+5 || sy < -5 || sy > H+5) continue;
+    const isik = (.22+.69*p.boy)*(.76+.24*Math.sin(t*1.2+p.faz));
+    const r = .34 + p.boy**5*(1.02+ucus*.55);
+    nokta(ctx,x,sy,r,p.sicak ? `rgba(255,215,183,${isik})` : `rgba(213,225,255,${isik})`);
+    if (p.boy > .979) {
+      hale(ctx,x,sy,r*5,'rgba(142,162,255,.23)');
+      parilti(x,sy,r*3.7,isik*.58);
+    }
+  }
+}
+function gezegen(x,y,r,renkler,halka,op,t) {
+  if(op <= 0) return;
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.globalAlpha = op;
+  hale(ctx,0,0,r*1.32,'rgba(139,150,255,.18)');
+  if(halka) halkaCiz(r,false);
+  const g = ctx.createRadialGradient(-r*.47,-r*.54,r*.03,r*.04,r*.06,r*1.12);
+  renkler.forEach(([p,c])=>g.addColorStop(p,c));
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(0,0,r,0,PI*2); ctx.fill();
+  ctx.save(); ctx.clip(); ctx.rotate(-.22);
+  for(let i=0;i<21;i++) {
+    const h = (i/20-.5)*r*1.9;
+    ctx.beginPath();
+    ctx.moveTo(-r*1.2,h);
+    ctx.bezierCurveTo(-r*.5,h+r*.19,r*.48,h+r*.08+Math.sin(i+t*.24)*r*.05,r*1.2,h-r*.18);
+    ctx.strokeStyle = i%3 === 0 ? 'rgba(255,226,249,.19)' : 'rgba(16,12,36,.17)';
+    ctx.lineWidth = r*(.016+(i%4)*.015); ctx.stroke();
+  }
+  ctx.restore();
+  if(halka) halkaCiz(r,true);
+  ctx.restore();
+}
+function halkaCiz(r,on) {
+  ctx.save();
+  ctx.rotate(-.32);
+  const renk = ['#b7a5db55','#d8b7dca0','#f2c7bb91','#cab8e2b0','#d7c8f856'];
+  for(let i=0;i<renk.length;i++) {
+    ctx.beginPath();
+    ctx.ellipse(0,0,r*(1.29+i*.12),r*(.31+i*.029),0,on?0:PI,on?PI:PI*2);
+    ctx.strokeStyle = renk[i]; ctx.lineWidth = r*(.064+i*.006); ctx.stroke();
+  }
+  ctx.restore();
+}
+function galaksi(resim,x,y,boy,aci,ezilme,op,t) {
+  ctx.save();
+  ctx.globalAlpha = op; ctx.translate(x,y); ctx.rotate(aci);
+  ctx.scale(1,ezilme); ctx.rotate(t*.026);
+  ctx.drawImage(resim,-boy/2,-boy/2,boy,boy);
+  ctx.restore();
+}
+function pencere(t) {
+  const yaklas = gecis(t,.65,7.3);
+  if(yaklas >= 1) return;
+  const genis = Math.min(W*.8,H*.71);
+  const yuksek = Math.min(H*.72,genis*1.39);
+  const s = 1+14*yaklas**1.6;
+  const merkez = H*.53+H*.63*yaklas;
+  ctx.save();
+  ctx.translate(W/2,merkez); ctx.scale(s,s);
+  const x = -genis/2, y = -yuksek/2;
+  const kavis = genis*.31;
+  const cerceve = new Path2D();
+  cerceve.moveTo(x,y+kavis);
+  cerceve.bezierCurveTo(x,y-kavis*.31,-x,y-kavis*.31,-x,y+kavis);
+  cerceve.lineTo(-x,-y); cerceve.lineTo(x,-y); cerceve.closePath();
+  const duvar = new Path2D(cerceve);
+  duvar.rect(-W*3,-H*3,W*6,H*6);
+  ctx.globalAlpha = 1-gecis(t,5.3,7.3);
+  const golge = ctx.createLinearGradient(-W/2,-H/2,W/2,H/2);
+  golge.addColorStop(0,'#191725'); golge.addColorStop(.45,'#0d0d16'); golge.addColorStop(1,'#241827');
+  ctx.fillStyle = golge; ctx.fill(duvar,'evenodd');
+  ctx.strokeStyle = '#100b13'; ctx.lineWidth = genis*.073; ctx.stroke(cerceve);
+  ctx.strokeStyle = '#554053'; ctx.lineWidth = genis*.011; ctx.stroke(cerceve);
+  ctx.strokeStyle = '#211722'; ctx.lineWidth = genis*.034;
+  const dikme = genis*.265;
+  for (const px of [-dikme,dikme]) {
+    ctx.beginPath(); ctx.moveTo(px,y+kavis*.2); ctx.lineTo(px,-y); ctx.stroke();
+  }
+  ctx.beginPath(); ctx.moveTo(x,y+kavis); ctx.lineTo(-x,y+kavis); ctx.stroke();
+  ctx.fillStyle = '#32242d'; ctx.fillRect(x-genis*.055,-y,genis*1.11,genis*.043);
+  ctx.fillStyle = '#64464f'; ctx.fillRect(x-genis*.055,-y,genis*1.11,genis*.007);
+  ctx.restore();
+}
+function ciz(t) {
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  const ucus = gecis(t,6.5,15);
+  gokyuzu(t,ucus);
+  const p = gecis(t,9,16.8);
+  const gor = gecis(t,8,10.6)*(1-gecis(t,15.1,18));
+  gezegen(W*.69+S*.32*p,H*.46+S*.14*p,S*(.105+.23*p),
+    [[0,'#efd4b1'],[.27,'#bd92a3'],[.58,'#855b85'],[.86,'#3f2e53'],[1,'#100e23']],
+    true,gor,t);
+  gezegen(W*.23-S*.29*p,H*.34+S*.1*p,S*(.046+.11*p),
+    [[0,'#d1ecff'],[.34,'#729ed6'],[.7,'#3c4f9a'],[1,'#121331']],false,gor*.88,t);
+  const g = gecis(t,15,20.6);
+  const ilerleme = gecis(t,15,27);
+  galaksi(mavi,W*.25-S*.06*ilerleme,H*.35-S*.08*ilerleme,S*(.62+.25*ilerleme),-.7,.49,g*.82,t);
+  galaksi(pembe,W*.80,H*.72,S*(.57+.18*ilerleme),.37,.61,g*.76,t);
+  galaksi(mor,W*.58,H*.46,S*(.83+.47*ilerleme),-.39,.66,g,t);
+  pencere(t);
+  const son = gecis(t,21.7,25.4);
+  if(son>0) {
+    ctx.globalAlpha = son;
+    hale(ctx,W*.5,H*.51,Math.max(S*.68,W*.33),'rgba(4,5,19,.86)');
+    ctx.globalAlpha = 1;
+  }
+  mesaj.style.opacity = son;
+  mesaj.setAttribute('aria-hidden', son < .5 ? 'true' : 'false');
+}
+let sure = 0, once = null;
+let durdu = matchMedia('(prefers-reduced-motion: reduce)').matches;
+function durum() {
+  beklet.textContent = durdu ? 'Oynat' : 'Duraklat';
+}
+beklet.onclick = () => { durdu = !durdu; durum(); };
+document.querySelector('#tekrar').onclick = () => { sure = 0; durdu = false; durum(); };
+durum();
+ciz(0);
+function kare(simdi) {
+  const dt = once === null ? 0 : Math.min((simdi-once)/1000,.05);
+  once = simdi;
+  if(!durdu) sure += dt;
+  ciz(sure);
+  requestAnimationFrame(kare);
+}
+requestAnimationFrame(kare);
+</script>
+</body>
+</html>
